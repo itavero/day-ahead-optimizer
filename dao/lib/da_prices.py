@@ -121,7 +121,7 @@ class DaPrices:
 
             if source.lower() == "jeroennl":
                 try:
-                    df_db = self._jeroennl_client().get_day_ahead_prices()
+                    df_db = self._jeroennl_client().get_day_ahead_prices(start, end)
                 except Exception as ex:
                     logging.error(
                         f"Error fetching Jeroen.nl day-ahead prices: {type(ex).__name__}"
@@ -463,7 +463,7 @@ class DaPrices:
             return
         known_at = last_known.astimezone()
         new_horizon = known_at + datetime.timedelta(hours=extension)
-        if source == "jeroennl":
+        if source.lower() == "jeroennl":
             try:
                 df_db = self._jeroennl_client().get_predicted_prices(
                     known_at, new_horizon

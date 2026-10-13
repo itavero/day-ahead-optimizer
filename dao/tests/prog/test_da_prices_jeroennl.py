@@ -1,10 +1,11 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pandas as pd
 
 from dao.lib import da_prices_jeroennl as jeroennl_module
 from dao.lib.da_prices import DaPrices
+from dao.lib.da_prices_jeroennl import JeroenNlPrices
 from dao.prog.config.models.base import SecretStr
 from dao.prog.config.models.pricing import PricingConfig
 
@@ -83,15 +84,20 @@ def test_jeroennl_config_accepts_sources_and_resolves_secret():
     )
 
 
-def test_jeroennl_prices_fetch_today_and_tomorrow_and_parse_utc(monkeypatch):
+def test_jeroennl_prices_fetch_only_intersecting_periods_and_filter_bounds(monkeypatch):
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
     api_responses = {
         "vandaag": [
-            _item("2026-03-29 00:45:00"),
-            _item("2026-03-29 01:00:00", "0,169300"),
+            _item("2026-10-12 21:45:00", "0,100000"),
+            _item("2026-10-12 22:00:00"),
+            _item("2026-10-12 22:15:00", "0,169300"),
         ],
         "morgen": [
-            _item("2026-10-25 00:45:00"),
-            _item("2026-10-25 01:00:00", "0,169300"),
+            _item("2026-10-13 22:00:00", "0,150000"),
+            _item("2026-10-14 21:45:00", "0,180000"),
+            _item("2026-10-14 22:00:00", "0,200000"),
         ],
     }
     calls = []
@@ -108,29 +114,83 @@ def test_jeroennl_prices_fetch_today_and_tomorrow_and_parse_utc(monkeypatch):
         secrets={"jeroen_key": "account-api-key"},
     )
 
-    prices.get_prices("jeroennl")
+    prices.get_prices(
+        "jeroennl",
+        datetime(2026, 10, 13),
+        datetime(2026, 10, 15),
+    )
 
     assert [call[1]["period"] for call in calls] == ["vandaag", "morgen"]
     assert all(call[1]["key"] == "account-api-key" for call in calls)
     assert all(call[1]["type"] == "json" and call[2] == 30 for call in calls)
     saved = db.saved[0][1]
-    assert saved["value"].tolist() == [0.175, 0.1693, 0.175, 0.1693]
+    assert saved["value"].tolist() == [0.175, 0.1693, 0.15, 0.18]
     expected_times = [
         int(datetime.fromisoformat(value).replace(tzinfo=UTC).timestamp())
         for value in (
-            "2026-03-29 00:45:00",
-            "2026-03-29 01:00:00",
-            "2026-10-25 00:45:00",
-            "2026-10-25 01:00:00",
+            "2026-10-12 22:00:00",
+            "2026-10-12 22:15:00",
+            "2026-10-13 22:00:00",
+            "2026-10-14 21:45:00",
         )
     ]
     actual_times = saved["time"].astype(int).tolist()
     assert actual_times == expected_times
     assert actual_times[1] - actual_times[0] == 900
-    assert actual_times[3] - actual_times[2] == 900
+    assert actual_times[2] - actual_times[1] == 85_500
+    assert actual_times[3] - actual_times[2] == 85_500
+
+
+def test_jeroennl_historical_range_uses_year_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
+    calls = []
+
+    def fake_get(_url, *, params, timeout):
+        calls.append(params)
+        return _Response(
+            [
+                _item("2024-01-01 00:00:00", "0,100000"),
+                _item("2024-02-01 00:00:00", "0,200000"),
+                _item("2024-03-01 00:00:00", "0,300000"),
+            ]
+        )
+
+    monkeypatch.setattr(jeroennl_module, "get", fake_get)
+    prices = JeroenNlPrices("account-api-key")
+    df = prices.get_day_ahead_prices(
+        datetime(2024, 1, 15), datetime(2024, 3, 1)
+    )
+
+    assert calls == [
+        {
+            "key": "account-api-key",
+            "period": "jaar",
+            "type": "json",
+            "year": 2024,
+        }
+    ]
+    assert df["value"].tolist() == [0.2]
+
+
+def test_utc_parser_attaches_utc_to_naive_and_converts_offsets():
+    df = JeroenNlPrices.parse_prices(
+        [
+            _item("2026-03-29 00:00:00"),
+            _item("2026-03-29T01:00:00+01:00"),
+        ]
+    )
+
+    assert df["time"].astype(int).tolist() == [
+        int(datetime(2026, 3, 29, tzinfo=UTC).timestamp())
+    ] * 2
 
 
 def test_empty_tomorrow_and_invalid_partial_rows_are_ignored(monkeypatch):
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
     api_responses = {
         "vandaag": [
             _item("2026-10-13 00:00:00"),
@@ -149,7 +209,9 @@ def test_empty_tomorrow_and_invalid_partial_rows_are_ignored(monkeypatch):
         secrets={"jeroen_key": "account-api-key"},
     )
 
-    df = prices._jeroennl_client().get_day_ahead_prices()
+    df = prices._jeroennl_client().get_day_ahead_prices(
+        datetime(2026, 10, 13), datetime(2026, 10, 15)
+    )
 
     assert len(df) == 1
     assert df.iloc[0]["value"] == 0.175
@@ -185,6 +247,7 @@ def test_jeroennl_predictions_exclude_known_prices_and_respect_extension(monkeyp
     assert db.saved[0][0] == "prognoses"
     prediction_df = db.saved[0][1]
     assert prediction_df["value"].tolist() == [0.19]
+    assert prediction_df.columns.tolist() == ["time", "code", "value"]
     assert pd.to_datetime(
         prediction_df.iloc[0]["time"], unit="s", utc=True
     ) == pd.Timestamp("2026-10-13T22:15:00Z")
