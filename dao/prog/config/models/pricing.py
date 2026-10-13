@@ -88,7 +88,7 @@ class PricingConfig(BaseModel):
             "x-help": "API key for Jeroen.nl price and prediction endpoints. Required when either price source is jeroennl. Store with !secret.",
             "x-ui-section": "Prices",
             "x-validation-hint": "Required for jeroennl source, use !secret",
-            "x-docs-url": "https://jeroen.nl/",
+            "x-docs-url": "https://jeroen.nl/account/data/stroomprijzen",
         },
     )
 

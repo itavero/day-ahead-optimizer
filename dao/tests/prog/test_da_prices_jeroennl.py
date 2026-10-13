@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from dao.lib import da_prices as da_prices_module
+from dao.lib import da_prices_jeroennl as jeroennl_module
 from dao.lib.da_prices import DaPrices
 from dao.prog.config.models.base import SecretStr
 from dao.prog.config.models.pricing import PricingConfig
@@ -100,7 +100,7 @@ def test_jeroennl_prices_fetch_today_and_tomorrow_and_parse_utc(monkeypatch):
         calls.append((url, params, timeout))
         return _Response(api_responses[params["period"]])
 
-    monkeypatch.setattr(da_prices_module, "get", fake_get)
+    monkeypatch.setattr(jeroennl_module, "get", fake_get)
     db = _Database()
     prices = DaPrices(
         _prices_config(),
@@ -139,7 +139,7 @@ def test_empty_tomorrow_and_invalid_partial_rows_are_ignored(monkeypatch):
         "morgen": [],
     }
     monkeypatch.setattr(
-        da_prices_module,
+        jeroennl_module,
         "get",
         lambda _url, *, params, timeout: _Response(api_responses[params["period"]]),
     )
@@ -149,7 +149,7 @@ def test_empty_tomorrow_and_invalid_partial_rows_are_ignored(monkeypatch):
         secrets={"jeroen_key": "account-api-key"},
     )
 
-    df = prices._get_prices_jeroennl()
+    df = prices._jeroennl_client().get_day_ahead_prices()
 
     assert len(df) == 1
     assert df.iloc[0]["value"] == 0.175
@@ -168,7 +168,7 @@ def test_jeroennl_predictions_exclude_known_prices_and_respect_extension(monkeyp
         calls.append(params)
         return _Response(prediction_rows)
 
-    monkeypatch.setattr(da_prices_module, "get", fake_get)
+    monkeypatch.setattr(jeroennl_module, "get", fake_get)
     db = _Database(known_at)
     prices = DaPrices(
         _prices_config(extension=24),
@@ -192,7 +192,7 @@ def test_jeroennl_predictions_exclude_known_prices_and_respect_extension(monkeyp
 
 def test_prediction_extension_zero_skips_api_call(monkeypatch):
     monkeypatch.setattr(
-        da_prices_module,
+        jeroennl_module,
         "get",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             AssertionError("unexpected request")

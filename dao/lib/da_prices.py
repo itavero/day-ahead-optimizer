@@ -11,8 +11,7 @@ from nordpool.elspot import Prices as NordpoolPrices
 from requests import get, post
 
 from dao.lib.db_manager import DBmanagerObj
-
-JEROENNL_API_URL = "https://jeroen.nl/api/dynamische-energieprijzen/v2/"
+from dao.lib.da_prices_jeroennl import JeroenNlPrices
 
 
 class DaPrices:
@@ -121,56 +120,22 @@ class DaPrices:
                 df_db = self._get_prices_tibber(start)
 
             if source.lower() == "jeroennl":
-                df_db = self._get_prices_jeroennl()
+                try:
+                    df_db = self._jeroennl_client().get_day_ahead_prices()
+                except Exception as ex:
+                    logging.error(
+                        f"Error fetching Jeroen.nl day-ahead prices: {type(ex).__name__}"
+                    )
 
             if df_db is not None:
                 self.db_da.savedata(df_db)
 
-    def _jeroennl_api_key(self):
+    def _jeroennl_client(self):
         key = self.config.prices.jeroennl_api_key
         api_key = key.resolve(self._secrets) if key is not None else None
         if not api_key:
             raise ValueError("Jeroen.nl API key is required for this price source")
-        return api_key
-
-    def _request_jeroennl(self, period):
-        response = get(
-            JEROENNL_API_URL,
-            params={"key": self._jeroennl_api_key(), "period": period, "type": "json"},
-            timeout=30,
-        )
-        response.raise_for_status()
-        data = response.json()
-        if not isinstance(data, list):
-            raise ValueError(f"Jeroen.nl returned an invalid response for {period}")
-        return data
-
-    @staticmethod
-    def _parse_jeroennl_prices(data, price_field="prijs_excl_belastingen"):
-        rows = []
-        for item in data:
-            try:
-                utc_value = item["datum_utc"].replace("Z", "+00:00")
-                timestamp = datetime.datetime.fromisoformat(utc_value)
-                if timestamp.tzinfo is None:
-                    timestamp = timestamp.replace(tzinfo=datetime.UTC)
-                price = float(item[price_field].replace(",", "."))
-            except (AttributeError, KeyError, TypeError, ValueError) as ex:
-                logging.warning(f"Skipping invalid Jeroen.nl price row: {ex}")
-                continue
-            rows.append([str(int(timestamp.timestamp())), "da", price])
-        return pd.DataFrame(rows, columns=["time", "code", "value"])
-
-    def _get_prices_jeroennl(self):
-        rows = []
-        for period in ("vandaag", "morgen"):
-            try:
-                rows.extend(self._request_jeroennl(period))
-            except Exception as ex:
-                logging.error(
-                    f"Error fetching Jeroen.nl {period} prices: {type(ex).__name__}"
-                )
-        return self._parse_jeroennl_prices(rows)
+        return JeroenNlPrices(api_key)
 
     def _get_prices_entsoe(self, start, end):
         start = pd.Timestamp(
@@ -485,21 +450,6 @@ class DaPrices:
         df["code"] = "da"
         return df
 
-    def extract_data_jeroennl(self,
-                              data: list,
-                              know_at: datetime.datetime,
-                              new_horizon: datetime.datetime
-                              ) -> pd.DataFrame:
-        df_db = pd.DataFrame(columns=["time", "tijd", "code", "value"])
-        prices = self._parse_jeroennl_prices(data)
-        for row in prices.itertuples(index=False):
-            timestamp = int(row.time)
-            dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
-            if dt > know_at and dt <= new_horizon:
-                df_db.loc[df_db.shape[0]] = [timestamp, dt, "da", row.value]
-        return df_db
-
-
     def get_predicted_prices(self):
         source = self.config.prices.prediction.source
         api_url = self.config.prices.prediction.api
@@ -515,14 +465,15 @@ class DaPrices:
         new_horizon = known_at + datetime.timedelta(hours=extension)
         if source == "jeroennl":
             try:
-                json_object = self._request_jeroennl("voorspelling")
+                df_db = self._jeroennl_client().get_predicted_prices(
+                    known_at, new_horizon
+                )
             except Exception as ex:
                 logging.error(
                     "No data from Jeroen.nl for predicted prices: "
                     f"{type(ex).__name__}"
                 )
                 return
-            df_db = self.extract_data_jeroennl(json_object, known_at, new_horizon)
         else:
             now = datetime.datetime.now().astimezone()
             fetch_hours = math.ceil((new_horizon - now).total_seconds()/3600)
