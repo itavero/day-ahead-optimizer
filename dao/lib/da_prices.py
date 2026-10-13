@@ -10,8 +10,8 @@ from entsoe import EntsoePandasClient
 from nordpool.elspot import Prices as NordpoolPrices
 from requests import get, post
 
-from dao.lib.db_manager import DBmanagerObj
 from dao.lib.da_prices_jeroennl import JeroenNlPrices
+from dao.lib.db_manager import DBmanagerObj
 
 
 class DaPrices:
