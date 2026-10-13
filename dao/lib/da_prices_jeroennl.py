@@ -1,3 +1,5 @@
+"""Client for retrieving and normalizing Jeroen.nl electricity prices."""
+
 import datetime
 import logging
 from zoneinfo import ZoneInfo
@@ -10,12 +12,16 @@ LOCAL_TIME_ZONE = ZoneInfo("Europe/Amsterdam")
 
 
 class JeroenNlPrices:
+    """Fetch Jeroen.nl price data and convert it to DAO's price format."""
+
     def __init__(self, api_key: str):
+        """Initialize the client with an account API key."""
         if not api_key:
             raise ValueError("Jeroen.nl API key is required for this price source")
         self.api_key = api_key
 
     def get_prices(self, period: str, year: int | None = None) -> list[dict]:
+        """Fetch raw API records for a period and optional calendar year."""
         params = {"key": self.api_key, "period": period, "type": "json"}
         if year is not None:
             params["year"] = year
@@ -34,6 +40,7 @@ class JeroenNlPrices:
     def parse_prices(
         data: list[dict], price_field: str = "prijs_excl_belastingen"
     ) -> pd.DataFrame:
+        """Normalize API records to Unix time, DAO code, and numeric value."""
         rows = []
         for item in data:
             try:
@@ -51,16 +58,19 @@ class JeroenNlPrices:
 
     @staticmethod
     def _local_datetime(value: datetime.datetime) -> datetime.datetime:
+        """Interpret naive datetimes as Amsterdam time; convert aware ones."""
         if value.tzinfo is None:
             return value.replace(tzinfo=LOCAL_TIME_ZONE)
         return value.astimezone(LOCAL_TIME_ZONE)
 
     @classmethod
     def _day_start(cls, value: datetime.date) -> datetime.datetime:
+        """Return the start of a date in the Jeroen.nl market timezone."""
         return datetime.datetime.combine(value, datetime.time.min, LOCAL_TIME_ZONE)
 
     @staticmethod
     def _today() -> datetime.date:
+        """Return today's date in the Jeroen.nl market timezone."""
         return datetime.datetime.now(LOCAL_TIME_ZONE).date()
 
     def _fetch_bounded_prices(
@@ -72,6 +82,7 @@ class JeroenNlPrices:
         year: int | None = None,
         start_exclusive: bool = False,
     ) -> pd.DataFrame:
+        """Fetch one endpoint and retain records within the requested time range."""
         prices = self.parse_prices(self.get_prices(period, year=year))
         if prices.empty:
             return prices
@@ -86,11 +97,17 @@ class JeroenNlPrices:
 
     @staticmethod
     def _empty_price_frame() -> pd.DataFrame:
+        """Return an empty frame with the columns expected by DAO."""
         return pd.DataFrame(columns=["time", "code", "value"])
 
     def get_day_ahead_prices(
         self, start: datetime.datetime, end: datetime.datetime
     ) -> pd.DataFrame:
+        """Fetch only date feeds intersecting ``[start, end)`` and combine them.
+
+        Historical dates use the yearly feed, while today and tomorrow use their
+        dedicated feeds. Returned rows are filtered to the requested bounds.
+        """
         start = self._local_datetime(start)
         end = self._local_datetime(end)
         if end <= start:
@@ -154,6 +171,7 @@ class JeroenNlPrices:
     def get_predicted_prices(
         self, start: datetime.datetime, end: datetime.datetime
     ) -> pd.DataFrame:
+        """Fetch predictions after ``start`` and before ``end``."""
         return self._fetch_bounded_prices(
             "voorspelling", start, end, start_exclusive=True
         )
