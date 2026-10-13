@@ -108,7 +108,9 @@ class JeroenNlPrices:
             year_end = (historical_end - datetime.timedelta(microseconds=1)).year
             for year in range(year_start, year_end + 1):
                 try:
-                    period_start = max(start, self._day_start(datetime.date(year, 1, 1)))
+                    period_start = max(
+                        start, self._day_start(datetime.date(year, 1, 1))
+                    )
                     period_end = min(
                         historical_end,
                         self._day_start(datetime.date(year + 1, 1, 1)),

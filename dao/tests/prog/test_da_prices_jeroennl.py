@@ -159,9 +159,7 @@ def test_jeroennl_historical_range_uses_year_endpoint(monkeypatch):
 
     monkeypatch.setattr(jeroennl_module, "get", fake_get)
     prices = JeroenNlPrices("account-api-key")
-    df = prices.get_day_ahead_prices(
-        datetime(2024, 1, 15), datetime(2024, 3, 1)
-    )
+    df = prices.get_day_ahead_prices(datetime(2024, 1, 15), datetime(2024, 3, 1))
 
     assert calls == [
         {
@@ -174,6 +172,25 @@ def test_jeroennl_historical_range_uses_year_endpoint(monkeypatch):
     assert df["value"].tolist() == [0.2]
 
 
+def test_jeroennl_tomorrow_range_skips_today_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
+    calls = []
+
+    def fake_get(_url, *, params, timeout):
+        calls.append(params["period"])
+        return _Response([_item("2026-10-13 22:00:00")])
+
+    monkeypatch.setattr(jeroennl_module, "get", fake_get)
+    prices = JeroenNlPrices("account-api-key")
+
+    df = prices.get_day_ahead_prices(datetime(2026, 10, 14), datetime(2026, 10, 15))
+
+    assert calls == ["morgen"]
+    assert df["value"].tolist() == [0.175]
+
+
 def test_utc_parser_attaches_utc_to_naive_and_converts_offsets():
     df = JeroenNlPrices.parse_prices(
         [
@@ -182,9 +199,10 @@ def test_utc_parser_attaches_utc_to_naive_and_converts_offsets():
         ]
     )
 
-    assert df["time"].astype(int).tolist() == [
-        int(datetime(2026, 3, 29, tzinfo=UTC).timestamp())
-    ] * 2
+    assert (
+        df["time"].astype(int).tolist()
+        == [int(datetime(2026, 3, 29, tzinfo=UTC).timestamp())] * 2
+    )
 
 
 def test_empty_tomorrow_and_invalid_partial_rows_are_ignored(monkeypatch):
@@ -249,7 +267,7 @@ def test_jeroennl_predictions_exclude_known_prices_and_respect_extension(monkeyp
     assert prediction_df["value"].tolist() == [0.19]
     assert prediction_df.columns.tolist() == ["time", "code", "value"]
     assert pd.to_datetime(
-        prediction_df.iloc[0]["time"], unit="s", utc=True
+        int(prediction_df.iloc[0]["time"]), unit="s", utc=True
     ) == pd.Timestamp("2026-10-13T22:15:00Z")
 
 
