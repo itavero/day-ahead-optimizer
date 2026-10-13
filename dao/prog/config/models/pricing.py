@@ -33,11 +33,11 @@ class PricePrediction(BaseModel):
         default="https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json",
         description="The url of the supplier of prediction data, with which DAO can get the prediction data ",
         json_schema_extra={
-            "x-help": "The url of the supplier to get the prediction data"
-                      "for Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>"
-                      "for energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>"
-                      "for da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json"
-                      "for jeroennl: https://jeroen.nl/api/dynamische-energieprijzen/v2/?period=voorspelling&type=json",
+            "x-help": "The url of the supplier to get the prediction data. "
+                      "For Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>. "
+                      "For energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>. "
+                      "For da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json. "
+                      "For Jeroen.nl, the API URL is configured internally.",
             "x-ui-section": "Prices",
         },
     )
@@ -89,13 +89,6 @@ class PricingConfig(BaseModel):
             "x-ui-section": "Prices",
             "x-validation-hint": "Required for jeroennl source, use !secret",
             "x-docs-url": "https://jeroen.nl/",
-            "x-ui-rules": {
-                "effect": "SHOW",
-                "condition": {
-                    "scope": "#/properties/source_day_ahead",
-                    "schema": {"const": "jeroennl"},
-                },
-            },
         },
     )
 

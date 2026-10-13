@@ -153,7 +153,7 @@ class DaPrices:
                 utc_value = item["datum_utc"].replace("Z", "+00:00")
                 timestamp = datetime.datetime.fromisoformat(utc_value)
                 if timestamp.tzinfo is None:
-                    timestamp = timestamp.replace(tzinfo=datetime.timezone.utc)
+                    timestamp = timestamp.replace(tzinfo=datetime.UTC)
                 price = float(item[price_field].replace(",", "."))
             except (AttributeError, KeyError, TypeError, ValueError) as ex:
                 logging.warning(f"Skipping invalid Jeroen.nl price row: {ex}")
@@ -494,7 +494,7 @@ class DaPrices:
         prices = self._parse_jeroennl_prices(data)
         for row in prices.itertuples(index=False):
             timestamp = int(row.time)
-            dt = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
+            dt = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
             if dt > know_at and dt <= new_horizon:
                 df_db.loc[df_db.shape[0]] = [timestamp, dt, "da", row.value]
         return df_db

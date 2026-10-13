@@ -2162,7 +2162,8 @@
               "enum": [
                 "epexpredictor",
                 "energypriceforecast_eu",
-                "dap"
+                "dap",
+                "jeroennl"
               ],
               "type": "string"
             },
@@ -2173,7 +2174,7 @@
           "default": "dap",
           "description": "The name of the supplier of prediction data, now there is support for epexpredictor, dap and energypriceforecast_eu",
           "title": "Source",
-          "x-help": "The name of the supplier of prediction data, now there is support for epexpredictor, dap and energypriceforecast_eu",
+          "x-help": "The name of the supplier of prediction data: epexpredictor, energypriceforecast_eu, dap, or jeroennl.",
           "x-ui-section": "Prices"
         },
         "api": {
@@ -2188,7 +2189,7 @@
           "default": "https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json",
           "description": "The url of the supplier of prediction data, with which DAO can get the prediction data ",
           "title": "Api",
-          "x-help": "The url of the supplier to get the prediction datafor Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>for energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>for da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json",
+          "x-help": "The url of the supplier to get the prediction data. For Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>. For energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>. For da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json. For Jeroen.nl, the API URL is configured internally.",
           "x-ui-section": "Prices"
         }
       },
@@ -2205,11 +2206,12 @@
           "enum": [
             "nordpool",
             "entsoe",
-            "tibber"
+            "tibber",
+            "jeroennl"
           ],
           "title": "Source Day Ahead",
           "type": "string",
-          "x-help": "Data source for day-ahead electricity market prices. 'nordpool' and 'entsoe' for European markets, 'tibber' if using Tibber integration.",
+          "x-help": "Data source for day-ahead electricity market prices: nordpool, entsoe, tibber, or jeroennl.",
           "x-ui-section": "Prices"
         },
         "prediction": {
@@ -2251,6 +2253,23 @@
           "x-ui-section": "Prices",
           "x-validation-hint": "Required for entsoe source, use !secret",
           "title": "Entsoe Api Key"
+        },
+        "jeroennl-api-key": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SecretStr"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Jeroen.nl API key (can use !secret)",
+          "x-docs-url": "https://jeroen.nl/",
+          "x-help": "API key for Jeroen.nl price and prediction endpoints. Required when either price source is jeroennl. Store with !secret.",
+          "x-ui-section": "Prices",
+          "x-validation-hint": "Required for jeroennl source, use !secret",
+          "title": "Jeroennl Api Key"
         },
         "energy taxes consumption": {
           "additionalProperties": {
@@ -2398,7 +2417,7 @@
       "title": "PricingConfig",
       "type": "object",
       "x-docs-url": "https://github.com/corneel27/day-ahead/wiki/Pricing-Configuration",
-      "x-help": "# Pricing & Tariff Configuration\n\nConfigure electricity market prices and tariff components for accurate cost optimization.\n\n## Price Components\n\nTotal electricity cost consists of:\n1. **Market price**: Day-ahead spot price (nordpool/entsoe/tibber)\n2. **Energy taxes**: Government energy taxes\n3. **Supplier costs**: Your supplier's markup/fees\n4. **VAT**: Value-added tax on sum of above\n5. **Multiplier**: For calculation of productionprice in Belgium \n\nPrice = (market*multiplier + taxes + supplier) × (1 + VAT)\n\n## Date-Based Tariffs\n\nAll tariff fields use date-indexed dictionaries:\n```json\n{\n  \"2024-01-01\": 0.05,\n  \"2024-07-01\": 0.06\n}\n```\n\nSystem uses tariff active on optimization date.\n\n## Data Sources\n\n- **nordpool**: Nord Pool (Nordic/Baltic markets)\n- **entsoe**: ENTSO-E Transparency Platform (all European markets)\n- **tibber**: Tibber API (if using Tibber as supplier)\n\n## Tips\n\n- All prices are EXCLUDING VAT (VAT applied separately)\n- Update tariffs when your supplier changes prices\n- Use !secret for API keys\n- Production costs often lower than consumption (or negative for feed-in credit)\n- Keep last_invoice updated for accurate cost tracking\n- Check your electricity bill for exact tariff components\n",
+      "x-help": "# Pricing & Tariff Configuration\n\nConfigure electricity market prices and tariff components for accurate cost optimization.\n\n## Price Components\n\nTotal electricity cost consists of:\n1. **Market price**: Day-ahead spot price (nordpool/entsoe/tibber)\n2. **Energy taxes**: Government energy taxes\n3. **Supplier costs**: Your supplier's markup/fees\n4. **VAT**: Value-added tax on sum of above\n5. **Multiplier**: For calculation of productionprice in Belgium \n\nPrice = (market*multiplier + taxes + supplier) × (1 + VAT)\n\n## Date-Based Tariffs\n\nAll tariff fields use date-indexed dictionaries:\n```json\n{\n  \"2024-01-01\": 0.05,\n  \"2024-07-01\": 0.06\n}\n```\n\nSystem uses tariff active on optimization date.\n\n## Data Sources\n\n- **nordpool**: Nord Pool (Nordic/Baltic markets)\n- **entsoe**: ENTSO-E Transparency Platform (all European markets)\n- **tibber**: Tibber API (if using Tibber as supplier)\n- **jeroennl**: Jeroen.nl API (requires an API key)\n\n## Tips\n\n- All prices are EXCLUDING VAT (VAT applied separately)\n- Update tariffs when your supplier changes prices\n- Use !secret for API keys\n- Add your Jeroen.nl key as `jeroennl-api-key: \"!secret jeroennl_api_key\"` in prices; use it for both day-ahead prices and predictions.\n- Jeroen.nl allows at most 10 API calls per day. Schedule its day-ahead task once daily after 13:00 and predictions shortly afterwards; each day-ahead task fetches today and tomorrow.\n- Production costs often lower than consumption (or negative for feed-in credit)\n- Keep last_invoice updated for accurate cost tracking\n- Check your electricity bill for exact tariff components\n",
       "x-icon": "currency-eur",
       "x-order": 11,
       "x-ui-group": "Pricing"
@@ -2657,7 +2676,7 @@
       "title": "SchedulerConfig",
       "type": "object",
       "x-docs-url": "https://github.com/corneel27/day-ahead/wiki/Scheduler",
-      "x-help": "# Scheduler Configuration\n\nDefine when automatic tasks run using time patterns.\n\n## Time Pattern Format\n\n- **Specific time**: \"0435\" (4:35 AM), \"1255\" (12:55 PM)\n- **Hourly wildcard**: \"xx00\" (every hour at :00), \"xx15\" (every hour at :15)\n- **Format**: HHMM (24-hour, no colons)\n\n## Available Actions\n\n### Data Collection\n- **get_meteo_data**: Fetch weather forecasts (solar irradiation, temperature)\n- **get_tibber_data**: Fetch Tibber prices (if using Tibber)\n- **get_day_ahead_prices**: Fetch day-ahead market prices\n\n### Optimization\n- **calc_optimum**: Run main optimization algorithm\n- **calc_baseloads**: Calculate baseline consumption from history\n\n### Maintenance\n- **clean_data**: Clean up old data (runs save_days retention)\n\n## Example Configuration\n\n```json\n{\n  \"active\": true,\n  \"schedule\": [\n    {\"time\": \"0435\", \"action\": \"get_day_ahead_prices\"},\n    {\"time\": \"0445\", \"action\": \"get_meteo_data\"},\n    {\"time\": \"0500\", \"action\": \"calc_optimum\"},\n    {\"time\": \"xx00\", \"action\": \"calc_baseloads\"},\n    {\"time\": \"0300\", \"action\": \"clean_data\"}\n  ]\n}\n```\n\n## Typical Schedule\n\n1. **04:00-05:00**: Fetch prices and weather (after day-ahead auction)\n2. **05:00**: Run optimization with fresh data\n3. **Hourly**: Update baseload calculations\n4. **03:00**: Clean old data (low activity time)\n\n## Tips\n\n- Day-ahead prices available after ~13:00 (CET) for next day\n- Run optimization after all data fetched\n- Hourly baseload updates improve accuracy\n- Clean data during low activity (night)\n- Avoid overlapping long-running tasks\n",
+      "x-help": "# Scheduler Configuration\n\nDefine when automatic tasks run using time patterns.\n\n## Time Pattern Format\n\n- **Specific time**: \"0435\" (4:35 AM), \"1255\" (12:55 PM)\n- **Hourly wildcard**: \"xx00\" (every hour at :00), \"xx15\" (every hour at :15)\n- **Format**: HHMM (24-hour, no colons)\n\n## Available Actions\n\n### Data Collection\n- **get_meteo_data**: Fetch weather forecasts (solar irradiation, temperature)\n- **get_tibber_data**: Fetch Tibber prices (if using Tibber)\n- **get_day_ahead_prices**: Fetch day-ahead market prices\n- **predicted_prices**: Fetch price predictions (if configured)\n\n### Optimization\n- **calc_optimum**: Run main optimization algorithm\n- **calc_baseloads**: Calculate baseline consumption from history\n\n### Maintenance\n- **clean_data**: Clean up old data (runs save_days retention)\n\n## Example Configuration\n\n```json\n{\n  \"active\": true,\n  \"schedule\": [\n    {\"time\": \"0435\", \"action\": \"get_day_ahead_prices\"},\n    {\"time\": \"0445\", \"action\": \"get_meteo_data\"},\n    {\"time\": \"0500\", \"action\": \"calc_optimum\"},\n    {\"time\": \"xx00\", \"action\": \"calc_baseloads\"},\n    {\"time\": \"0300\", \"action\": \"clean_data\"}\n  ]\n}\n```\n\n## Typical Schedule\n\n1. **04:00-05:00**: Fetch prices and weather (after day-ahead auction)\n2. **05:00**: Run optimization with fresh data\n3. **Hourly**: Update baseload calculations\n4. **03:00**: Clean old data (low activity time)\n\n## Tips\n\n- Day-ahead prices available after ~13:00 (CET) for next day\n- For Jeroen.nl, schedule `get_day_ahead_prices` once after 13:00 and `predicted_prices` shortly afterwards. The price task calls both today's and tomorrow's endpoints; the service limit is 10 API calls per day.\n- Avoid repeatedly retrying Jeroen.nl when tomorrow's prices are not yet available; an empty response is expected before publication.\n- Run optimization after all data fetched\n- Hourly baseload updates improve accuracy\n- Clean data during low activity (night)\n- Avoid overlapping long-running tasks\n",
       "x-icon": "clock-outline",
       "x-order": 18,
       "x-ui-group": "DAO"
