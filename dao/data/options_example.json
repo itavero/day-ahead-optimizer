@@ -539,24 +539,12 @@
         "action": "get_tibber_data"
       },
       {
-        "time": "1255",
+        "time": "1310",
         "action": "get_day_ahead_prices"
       },
       {
-        "time": "1355",
-        "action": "get_day_ahead_prices"
-      },
-      {
-        "time": "1455",
-        "action": "get_day_ahead_prices"
-      },
-      {
-        "time": "1554",
-        "action": "get_day_ahead_prices"
-      },
-      {
-        "time": "1655",
-        "action": "get_day_ahead_prices"
+        "time": "1320",
+        "action": "predicted_prices"
       },
       {
         "time": "xx00",

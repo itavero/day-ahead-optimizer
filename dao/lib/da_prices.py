@@ -167,7 +167,9 @@ class DaPrices:
             try:
                 rows.extend(self._request_jeroennl(period))
             except Exception as ex:
-                logging.error(f"Error fetching Jeroen.nl {period} prices: {ex}")
+                logging.error(
+                    f"Error fetching Jeroen.nl {period} prices: {type(ex).__name__}"
+                )
         return self._parse_jeroennl_prices(rows)
 
     def _get_prices_entsoe(self, start, end):
@@ -515,7 +517,10 @@ class DaPrices:
             try:
                 json_object = self._request_jeroennl("voorspelling")
             except Exception as ex:
-                logging.error(f"No data from Jeroen.nl for predicted prices: {ex}")
+                logging.error(
+                    "No data from Jeroen.nl for predicted prices: "
+                    f"{type(ex).__name__}"
+                )
                 return
             df_db = self.extract_data_jeroennl(json_object, known_at, new_horizon)
         else:

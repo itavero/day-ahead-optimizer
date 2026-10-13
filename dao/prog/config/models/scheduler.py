@@ -99,6 +99,7 @@ Define when automatic tasks run using time patterns.
 - **get_meteo_data**: Fetch weather forecasts (solar irradiation, temperature)
 - **get_tibber_data**: Fetch Tibber prices (if using Tibber)
 - **get_day_ahead_prices**: Fetch day-ahead market prices
+- **predicted_prices**: Fetch price predictions (if configured)
 
 ### Optimization
 - **calc_optimum**: Run main optimization algorithm
@@ -132,6 +133,8 @@ Define when automatic tasks run using time patterns.
 ## Tips
 
 - Day-ahead prices available after ~13:00 (CET) for next day
+- For Jeroen.nl, schedule `get_day_ahead_prices` once after 13:00 and `predicted_prices` shortly afterwards. The price task calls both today's and tomorrow's endpoints; the service limit is 10 API calls per day.
+- Avoid repeatedly retrying Jeroen.nl when tomorrow's prices are not yet available; an empty response is expected before publication.
 - Run optimization after all data fetched
 - Hourly baseload updates improve accuracy
 - Clean data during low activity (night)
