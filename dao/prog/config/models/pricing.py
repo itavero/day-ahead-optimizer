@@ -21,11 +21,11 @@ class PricePrediction(BaseModel):
             "x-ui-section": "Prices",
         },
     )
-    source: Literal["epexpredictor", "energypriceforecast_eu", "dap"] | None = Field (
+    source: Literal["epexpredictor", "energypriceforecast_eu", "dap", "jeroennl"] | None = Field (
         default="dap",
         description="The name of the supplier of prediction data, now there is support for epexpredictor, dap and energypriceforecast_eu",
         json_schema_extra={
-            "x-help": "The name of the supplier of prediction data, now there is support for epexpredictor, dap and energypriceforecast_eu",
+            "x-help": "The name of the supplier of prediction data: epexpredictor, energypriceforecast_eu, dap, or jeroennl.",
             "x-ui-section": "Prices",
         },
     )
@@ -33,10 +33,11 @@ class PricePrediction(BaseModel):
         default="https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json",
         description="The url of the supplier of prediction data, with which DAO can get the prediction data ",
         json_schema_extra={
-            "x-help": "The url of the supplier to get the prediction data"
-                      "for Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>"
-                      "for energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>"
-                      "for da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json",
+            "x-help": "The url of the supplier to get the prediction data. "
+                      "For Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>. "
+                      "For energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>. "
+                      "For da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json. "
+                      "For Jeroen.nl, the API URL is configured internally.",
             "x-ui-section": "Prices",
         },
     )
@@ -44,12 +45,12 @@ class PricePrediction(BaseModel):
 class PricingConfig(BaseModel):
     """Day-ahead pricing and tariff configuration."""
 
-    source_day_ahead: Literal["nordpool", "entsoe", "tibber"] = Field(
+    source_day_ahead: Literal["nordpool", "entsoe", "tibber", "jeroennl"] = Field(
         default="nordpool",
         alias="source day ahead",
         description="Source for day-ahead prices",
         json_schema_extra={
-            "x-help": "Data source for day-ahead electricity market prices. 'nordpool' and 'entsoe' for European markets, 'tibber' if using Tibber integration.",
+            "x-help": "Data source for day-ahead electricity market prices: nordpool, entsoe, tibber, or jeroennl.",
             "x-ui-section": "Prices",
         },
     )
@@ -77,6 +78,17 @@ class PricingConfig(BaseModel):
                     "schema": {"const": "entsoe"},
                 },
             },
+        },
+    )
+    jeroennl_api_key: SecretStr | None = Field(
+        default=None,
+        alias="jeroennl-api-key",
+        description="Jeroen.nl API key (can use !secret)",
+        json_schema_extra={
+            "x-help": "API key for Jeroen.nl price and prediction endpoints. Required when either price source is jeroennl. Store with !secret.",
+            "x-ui-section": "Prices",
+            "x-validation-hint": "Required for jeroennl source, use !secret",
+            "x-docs-url": "https://jeroen.nl/account/data/stroomprijzen",
         },
     )
 
@@ -236,12 +248,15 @@ System uses tariff active on optimization date.
 - **nordpool**: Nord Pool (Nordic/Baltic markets)
 - **entsoe**: ENTSO-E Transparency Platform (all European markets)
 - **tibber**: Tibber API (if using Tibber as supplier)
+- **jeroennl**: Jeroen.nl API (requires an API key)
 
 ## Tips
 
 - All prices are EXCLUDING VAT (VAT applied separately)
 - Update tariffs when your supplier changes prices
 - Use !secret for API keys
+- Add your Jeroen.nl key as `jeroennl-api-key: "!secret jeroennl_api_key"` in prices; use it for both day-ahead prices and predictions.
+- Jeroen.nl allows at most 10 API calls per day. Schedule its day-ahead task once daily after 13:00 and predictions shortly afterwards; each day-ahead task fetches today and tomorrow.
 - Production costs often lower than consumption (or negative for feed-in credit)
 - Keep last_invoice updated for accurate cost tracking
 - Check your electricity bill for exact tariff components

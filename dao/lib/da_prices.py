@@ -10,6 +10,7 @@ from entsoe import EntsoePandasClient
 from nordpool.elspot import Prices as NordpoolPrices
 from requests import get, post
 
+from dao.lib.da_prices_jeroennl import JeroenNlPrices
 from dao.lib.db_manager import DBmanagerObj
 
 
@@ -118,8 +119,23 @@ class DaPrices:
             if source.lower() == "tibber":
                 df_db = self._get_prices_tibber(start)
 
+            if source.lower() == "jeroennl":
+                try:
+                    df_db = self._jeroennl_client().get_day_ahead_prices(start, end)
+                except Exception as ex:
+                    logging.error(
+                        f"Error fetching Jeroen.nl day-ahead prices: {type(ex).__name__}"
+                    )
+
             if df_db is not None:
                 self.db_da.savedata(df_db)
+
+    def _jeroennl_client(self):
+        key = self.config.prices.jeroennl_api_key
+        api_key = key.resolve(self._secrets) if key is not None else None
+        if not api_key:
+            raise ValueError("Jeroen.nl API key is required for this price source")
+        return JeroenNlPrices(api_key)
 
     def _get_prices_entsoe(self, start, end):
         start = pd.Timestamp(
@@ -434,30 +450,45 @@ class DaPrices:
         df["code"] = "da"
         return df
 
-
     def get_predicted_prices(self):
         source = self.config.prices.prediction.source
         api_url = self.config.prices.prediction.api
-        extension = 96
+        extension = self.config.prices.prediction.extension or 0
         if extension == 0:
             logging.warning("predicted horizon extension is 0, no predicted prices are returned")
             return
-        known_at = self.db_da.get_time_border_record("da").astimezone()
+        last_known = self.db_da.get_time_border_record("da")
+        if last_known is None:
+            logging.warning("No known day-ahead prices; skipping price predictions")
+            return
+        known_at = last_known.astimezone()
         new_horizon = known_at + datetime.timedelta(hours=extension)
-        now = datetime.datetime.now().astimezone()
-        fetch_hours = math.ceil((new_horizon - now).total_seconds()/3600)
-        api_url= api_url.replace("<hours>", str(fetch_hours))
-        api_url= api_url.replace("<region>", self.country)
-        resp = get(api_url)
-        if resp.status_code != 200:
-            logging.error(f"No data from {source} off predict prices, "
-                          f"statuscode: {resp.status_code},"
-                          f"message: {resp.text}")
-            return resp.status_code
-        logging.debug(resp.text)
-        json_object = json.loads(resp.text)
-        extract_data_f = "extract_data_"+source
-        df_db = getattr(self, extract_data_f)(json_object, known_at, new_horizon)
+        if source.lower() == "jeroennl":
+            try:
+                df_db = self._jeroennl_client().get_predicted_prices(
+                    known_at, new_horizon
+                )
+            except Exception as ex:
+                logging.error(
+                    "No data from Jeroen.nl for predicted prices: "
+                    f"{type(ex).__name__}"
+                )
+                return
+        else:
+            now = datetime.datetime.now().astimezone()
+            fetch_hours = math.ceil((new_horizon - now).total_seconds()/3600)
+            api_url = api_url.replace("<hours>", str(fetch_hours))
+            api_url = api_url.replace("<region>", self.country)
+            resp = get(api_url)
+            if resp.status_code != 200:
+                logging.error(f"No data from {source} off predict prices, "
+                              f"statuscode: {resp.status_code},"
+                              f"message: {resp.text}")
+                return resp.status_code
+            logging.debug(resp.text)
+            json_object = json.loads(resp.text)
+            extract_data_f = "extract_data_"+source
+            df_db = getattr(self, extract_data_f)(json_object, known_at, new_horizon)
         logging.info(
             f"Day ahead prediction prijzen (source: {source}, db-records): \n "
             f"{df_db.to_string(index=False)}"

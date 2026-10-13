@@ -1311,12 +1311,15 @@ System uses tariff active on optimization date.
 - **nordpool**: Nord Pool (Nordic/Baltic markets)
 - **entsoe**: ENTSO-E Transparency Platform (all European markets)
 - **tibber**: Tibber API (if using Tibber as supplier)
+- **jeroennl**: Jeroen.nl API (requires an API key)
 
 ## Tips
 
 - All prices are EXCLUDING VAT (VAT applied separately)
 - Update tariffs when your supplier changes prices
 - Use !secret for API keys
+- Add your Jeroen.nl key as `jeroennl-api-key: "!secret jeroennl_api_key"` in prices; use it for both day-ahead prices and predictions.
+- Jeroen.nl allows at most 10 API calls per day. Schedule its day-ahead task once daily after 13:00 and predictions shortly afterwards; each day-ahead task fetches today and tomorrow.
 - Production costs often lower than consumption (or negative for feed-in credit)
 - Keep last_invoice updated for accurate cost tracking
 - Check your electricity bill for exact tariff components
@@ -1326,9 +1329,10 @@ System uses tariff active on optimization date.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `source day ahead` | string | No | `"nordpool"` | Source for day-ahead prices. Options: `nordpool`, `entsoe`, `tibber` |
+| `source day ahead` | string | No | `"nordpool"` | Source for day-ahead prices. Options: `nordpool`, `entsoe`, `tibber`, `jeroennl` |
 | `prediction` | [PricePrediction](#priceprediction) (optional) | No | `null` | Configuration of getting and using priceprediction beyond the day ahead spotprices of epex. |
 | `entsoe-api-key` | [SecretStr](#secretstr) (optional) | No | `null` | ENTSO-E API key (can use !secret) _Required for entsoe source, use !secret_ |
+| `jeroennl-api-key` | [SecretStr](#secretstr) (optional) | No | `null` | Jeroen.nl API key (can use !secret) _Required for jeroennl source, use !secret_ |
 | `energy taxes consumption` | object | Yes | — | Energy taxes for consumption by date (YYYY-MM-DD -> euro/kWh ex VAT) (Unit: `€/kWh`) _Dict with YYYY-MM-DD keys, float values (ex VAT)_ |
 | `energy taxes production` | object | Yes | — | Energy taxes for production by date (YYYY-MM-DD -> euro/kWh ex VAT) (Unit: `€/kWh`) _Dict with YYYY-MM-DD keys, float values (ex VAT)_ |
 | `cost supplier consumption` | object | Yes | — | Supplier costs for consumption by date (YYYY-MM-DD -> euro/kWh ex VAT) (Unit: `€/kWh`) _Dict with YYYY-MM-DD keys, float values (ex VAT)_ |
@@ -1345,7 +1349,7 @@ System uses tariff active on optimization date.
 
 **`source day ahead`**
 
-Data source for day-ahead electricity market prices. 'nordpool' and 'entsoe' for European markets, 'tibber' if using Tibber integration.
+Data source for day-ahead electricity market prices: nordpool, entsoe, tibber, or jeroennl.
 
 **`prediction`**
 
@@ -1354,6 +1358,10 @@ Configuration of getting and using priceprediction beyond the day ahead spotpric
 **`entsoe-api-key`**
 
 API key for ENTSO-E Transparency Platform. Required if source_day_ahead='entsoe'. Get free key at transparency.entsoe.eu. Use !secret for security.
+
+**`jeroennl-api-key`**
+
+API key for Jeroen.nl price and prediction endpoints. Required when either price source is jeroennl. Store with !secret.
 
 **`energy taxes consumption`**
 
@@ -1679,6 +1687,7 @@ Define when automatic tasks run using time patterns.
 - **get_meteo_data**: Fetch weather forecasts (solar irradiation, temperature)
 - **get_tibber_data**: Fetch Tibber prices (if using Tibber)
 - **get_day_ahead_prices**: Fetch day-ahead market prices
+- **predicted_prices**: Fetch price predictions (if configured)
 
 ### Optimization
 - **calc_optimum**: Run main optimization algorithm
@@ -1712,6 +1721,8 @@ Define when automatic tasks run using time patterns.
 ## Tips
 
 - Day-ahead prices available after ~13:00 (CET) for next day
+- For Jeroen.nl, schedule `get_day_ahead_prices` once after 13:00 and `predicted_prices` shortly afterwards. The price task calls both today's and tomorrow's endpoints; the service limit is 10 API calls per day.
+- Avoid repeatedly retrying Jeroen.nl when tomorrow's prices are not yet available; an empty response is expected before publication.
 - Run optimization after all data fetched
 - Hourly baseload updates improve accuracy
 - Clean data during low activity (night)
@@ -2025,11 +2036,11 @@ The amount of hours the planninghorizon is extended beyond the horizon of the re
 
 **`source`**
 
-The name of the supplier of prediction data, now there is support for epexpredictor, dap and energypriceforecast_eu
+The name of the supplier of prediction data: epexpredictor, energypriceforecast_eu, dap, or jeroennl.
 
 **`api`**
 
-The url of the supplier to get the prediction datafor Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>for energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>for da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json
+The url of the supplier to get the prediction data. For Epexpredictor: https://epexpredictor.batzill.com/prices?region=<region>&hours=<hours>. For energypriceforecast.eu: https://api.energypriceforecast.eu/api/v1/dao/prices?country=<region>&hours=<hours>. For da_prediction: https://raw.githubusercontent.com/corneel27/day-ahead-prediction/main/dap/data/prediction.json. For Jeroen.nl, the API URL is configured internally.
 
 </details>
 
