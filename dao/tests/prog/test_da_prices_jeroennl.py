@@ -53,7 +53,9 @@ def make_prices_config(prediction_extension=48):
 
 
 def timestamp(utc_datetime):
-    return str(int(datetime.fromisoformat(utc_datetime).replace(tzinfo=UTC).timestamp()))
+    return str(
+        int(datetime.fromisoformat(utc_datetime).replace(tzinfo=UTC).timestamp())
+    )
 
 
 def test_config_accepts_jeroennl_and_resolves_api_key():
@@ -81,7 +83,9 @@ def test_config_accepts_jeroennl_and_resolves_api_key():
 
 def test_today_endpoint_json_becomes_bounded_price_rows(monkeypatch):
     """Mock today's endpoint with its JSON shape and check normalized DB rows."""
-    monkeypatch.setattr(JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13)))
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
     endpoint_json = [
         {
             "datum_nl": "2026-10-13 00:00:00",
@@ -188,7 +192,9 @@ def test_prediction_endpoint_json_becomes_bounded_prognosis_rows(monkeypatch):
 
 
 def test_historical_range_requests_year_endpoint_and_filters_bounds(monkeypatch):
-    monkeypatch.setattr(JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13)))
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
     endpoint_json = [
         {
             "datum_nl": "2024-01-01 00:00:00",
@@ -231,7 +237,9 @@ def test_historical_range_requests_year_endpoint_and_filters_bounds(monkeypatch)
 
 
 def test_tomorrow_range_does_not_request_today(monkeypatch):
-    monkeypatch.setattr(JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13)))
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
     requests = []
 
     def mock_get(_url, *, params, timeout):
@@ -277,7 +285,9 @@ def test_parser_treats_naive_utc_as_utc_and_converts_offsets():
 
 
 def test_empty_tomorrow_and_invalid_rows_are_handled(monkeypatch):
-    monkeypatch.setattr(JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13)))
+    monkeypatch.setattr(
+        JeroenNlPrices, "_today", staticmethod(lambda: date(2026, 10, 13))
+    )
     responses = {
         "vandaag": [
             {
